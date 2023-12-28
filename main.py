@@ -10,6 +10,7 @@ import cantools
 IGNORED_IDS = []
 VOLUME_TICKS_CAN_ID = 0x3c2
 VOLUME_FLICK_INTERVAL = 4.0
+VEHICLE_DBC_FILE = Path('dbc/model3/Model3CAN.dbc')
 
 def configure_logger(name, level, file=None, formatter=None, propagate=False):
 	logger = logging.getLogger(name)
@@ -105,10 +106,10 @@ async def print_frames(bus: can.BusABC, dbc: cantools.db.Database):
 
 async def main() -> None:
 	dbc = cantools.db.can.database.Database()
-	dbc.add_dbc_file('model3_dbc/Model3CAN.dbc')
-	bus = can.interface.Bus(bustype='socketcan', channel='can0', bitrate=500000)
-	flick_volume_task = asyncio.create_task(flick_volume(bus, dbc))
-	print_frames_task = asyncio.create_task(print_frames(bus, dbc))
+	dbc.add_dbc_file(VEHICLE_DBC_FILE)
+	vehicle_bus = can.interface.Bus(bustype='socketcan', channel=VEHICLE_BUS_CHANNEL, bitrate=VEHICLE_BUS_BITRATE)
+	flick_volume_task = asyncio.create_task(flick_volume(vehicle_bus, dbc))
+	print_frames_task = asyncio.create_task(print_frames(vehicle_bus, dbc))
 	await asyncio.gather(flick_volume_task, print_frames_task, return_exceptions=True)
 
 
