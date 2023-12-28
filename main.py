@@ -10,6 +10,8 @@ import cantools
 IGNORED_IDS = []
 VOLUME_TICKS_CAN_ID = 0x3c2
 VOLUME_FLICK_INTERVAL = 4.0
+VEHICLE_BUS_CHANNEL = 'can0'
+VEHICLE_BUS_BITRATE = 500000
 VEHICLE_DBC_FILE = Path('dbc/model3/Model3CAN.dbc')
 
 def configure_logger(name, level, file=None, formatter=None, propagate=False):
