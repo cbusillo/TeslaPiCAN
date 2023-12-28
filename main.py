@@ -105,7 +105,7 @@ async def print_frames(bus: can.BusABC, dbc: cantools.db.Database):
 
 async def main() -> None:
 	dbc = cantools.db.can.database.Database()
-	dbc.add_dbc_file('model_y_can.dbc')
+	dbc.add_dbc_file('model3_dbc/Model3CAN.dbc')
 	bus = can.interface.Bus(bustype='socketcan', channel='can0', bitrate=500000)
 	flick_volume_task = asyncio.create_task(flick_volume(bus, dbc))
 	print_frames_task = asyncio.create_task(print_frames(bus, dbc))
