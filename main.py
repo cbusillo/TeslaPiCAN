@@ -29,7 +29,7 @@ def configure_logger(name: str, level: int, file: Path = None, formatter: loggin
 		file_handler.setFormatter(formatter)
 		logger.addHandler(file_handler)
 
-	if name == "Flick":
+	else:
 		console_handler = logging.StreamHandler()
 		console_handler.setLevel(level)
 		console_handler.setFormatter(formatter)
