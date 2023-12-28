@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import random
+import time
 from pathlib import Path
 
 import can
@@ -86,7 +87,7 @@ async def flick_volume(bus: can.BusABC, dbc: cantools.db.Database) -> None:
 		bus.send(can_frame)
 
 
-async def print_frames(bus: can.BusABC, dbc: cantools.db.Database):
+async def log_all_frames(bus: can.BusABC, dbc: cantools.db.Database):
 	while True:
 		message = bus.recv()
 		if not message:
@@ -100,10 +101,11 @@ async def print_frames(bus: can.BusABC, dbc: cantools.db.Database):
 			can_logger.debug(
 				f"Raw message: ID={message.arbitration_id}, Data={message.data.hex()}, Timestamp={message.timestamp}")
 			continue
+
 		except (KeyError, ValueError):
 			can_logger.debug(f"Received unknown message: {message}")
 
-		await asyncio.sleep(0.0001)
+		await asyncio.sleep(0.000001)
 
 
 async def main() -> None:
@@ -111,7 +113,7 @@ async def main() -> None:
 	dbc.add_dbc_file(CAN_DBC_FILE)
 	vehicle_bus = can.interface.Bus(bustype='socketcan', channel=VEHICLE_BUS_CHANNEL, bitrate=CAN_BUS_BITRATE)
 	flick_volume_task = asyncio.create_task(flick_volume(vehicle_bus, dbc))
-	print_frames_task = asyncio.create_task(print_frames(vehicle_bus, dbc))
+	print_frames_task = asyncio.create_task(log_all_frames(vehicle_bus, dbc))
 	await asyncio.gather(flick_volume_task, print_frames_task, return_exceptions=True)
 
 
