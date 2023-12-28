@@ -9,10 +9,11 @@ import cantools
 CAN_BUS_BITRATE = 500000
 CAN_DBC_FILE = Path('dbc/model3/Model3CAN.dbc')
 
-VOLUME_TICKS_CAN_ID = 0x3c2
+ID3C2VCLEFT_switchStatus = 0x3c2
 VOLUME_FLICK_INTERVAL = 10.0
 
 VEHICLE_BUS_CHANNEL = 'can0'
+VOLUME_TICKS_SIGNAL_NAME = 'VCLEFT_swcLeftScrollTicks'
 
 
 def configure_logger(name: str, level: int, file: Path = None, formatter: logging.Formatter = None,
@@ -62,8 +63,8 @@ def create_signal_dict(message, specified_signals, default_value=0) -> dict[str,
 
 
 async def flick_volume(bus: can.BusABC, dbc: cantools.db.Database) -> None:
-	volume_message = dbc.get_message_by_frame_id(VOLUME_TICKS_CAN_ID)
-	signals = create_signal_dict(volume_message, {'VCLEFT_swcLeftScrollTicks': -1})
+	volume_message = dbc.get_message_by_frame_id(ID3C2VCLEFT_switchStatus)
+	signals = create_signal_dict(volume_message, {VOLUME_TICKS_SIGNAL_NAME: -1})
 	while True:
 		jitter = (random.randint(0, 4000) / 1000) - 2
 		interval = VOLUME_FLICK_INTERVAL + jitter
@@ -72,13 +73,13 @@ async def flick_volume(bus: can.BusABC, dbc: cantools.db.Database) -> None:
 
 		flick_logger.info("Flicking volume")
 
-		signals['VCLEFT_swcLeftScrollTicks'] = -1
+		signals[VOLUME_TICKS_SIGNAL_NAME] = -1
 		encoded_data = volume_message.encode(signals)
-		can_frame = can.Message(arbitration_id=VOLUME_TICKS_CAN_ID, data=bytearray(encoded_data), is_extended_id=False)
+		can_frame = can.Message(arbitration_id=ID3C2VCLEFT_switchStatus, data=bytearray(encoded_data), is_extended_id=False)
 		bus.send(can_frame)
 		await asyncio.sleep(0.01)
 
-		signals['VCLEFT_swcLeftScrollTicks'] = 1
+		signals[VOLUME_TICKS_SIGNAL_NAME] = 1
 		encoded_data = volume_message.encode(signals)
 		can_frame.data = bytearray(encoded_data)
 		bus.send(can_frame)
