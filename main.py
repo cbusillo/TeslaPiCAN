@@ -1,5 +1,4 @@
 import asyncio
-import functools
 import logging
 import random
 from pathlib import Path
@@ -15,14 +14,12 @@ CAN_DBC_FILE = Path('dbc/model3/Model3CAN.dbc')
 
 VEHICLE_BUS_CHANNEL = 'can0'
 
-ID3C2VCLEFT_SWITCHSTATUS_ID = 0x3c2
 VOLUME_FLICK_INTERVAL = 10.0
 VOLUME_FLICK_JITTER = 2
 
 SIGNALS_TO_PRINT = {
 	0x321: ['VCFRONT_brakeFluidLevel', 'VCFRONT_coolantLevel'],
 	0x3d8: ['Elevation3D8'],
-
 }
 
 
@@ -57,20 +54,24 @@ signal_logger = configure_logger("Signal", logging.DEBUG, formatter=common_forma
 
 class CANBusSubscriber:
 	def __init__(self) -> None:
-		self.subscribers: list[SubscriberCallback] = []
+		self.subscribers: dict[int | None, list[SubscriberCallback]] = {}
 
-	def subscribe(self, callback: SubscriberCallback) -> None:
-		if callback not in self.subscribers:
-			self.subscribers.append(callback)
+	def subscribe(self, callback: SubscriberCallback, can_id: int = None) -> None:
+		if can_id not in self.subscribers:
+			self.subscribers[can_id] = []
+		if callback not in self.subscribers[can_id]:
+			self.subscribers[can_id].append(callback)
 
-	def unsubscribe(self, callback: SubscriberCallback) -> None:
-		if callback in self.subscribers:
-			self.subscribers.remove(callback)
+	def unsubscribe(self, callback: SubscriberCallback, can_id: int = None) -> None:
+		if callback in self.subscribers and callback in self.subscribers[can_id]:
+			self.subscribers[can_id].remove(callback)
 
 	async def notify_subscribers(self, message: can.Message) -> None:
-		for subscriber in self.subscribers:
+		for subscriber in self.subscribers.get(None, []):
 			await subscriber(message)
 
+		for subscriber in self.subscribers.get(message.arbitration_id, []):
+			await subscriber(message)
 
 async def read_can_messages(bus: can.BusABC, subscriber: CANBusSubscriber):
 	while True:
@@ -99,7 +100,7 @@ def create_signal_dict(message, specified_signals, default_value=0) -> dict[str,
 
 
 async def flick_volume(bus: can.BusABC, dbc: cantools.db.Database) -> None:
-	volume_message = dbc.get_message_by_frame_id(ID3C2VCLEFT_SWITCHSTATUS_ID)
+	volume_message = dbc.get_message_by_frame_id(0x3c2)
 	signals = create_signal_dict(volume_message, {'VCLEFT_swcLeftScrollTicks': -1})
 	while True:
 		jitter = (random.randint(0, 2000 * VOLUME_FLICK_JITTER) / 1000) - VOLUME_FLICK_JITTER
@@ -111,7 +112,7 @@ async def flick_volume(bus: can.BusABC, dbc: cantools.db.Database) -> None:
 
 		signals['VCLEFT_swcLeftScrollTicks'] = -1
 		encoded_data = volume_message.encode(signals)
-		can_frame = can.Message(arbitration_id=ID3C2VCLEFT_SWITCHSTATUS_ID, data=bytearray(encoded_data), is_extended_id=False)
+		can_frame = can.Message(arbitration_id=0x3c2, data=bytearray(encoded_data), is_extended_id=False)
 		bus.send(can_frame)
 		await asyncio.sleep(0.01)
 
@@ -154,10 +155,16 @@ async def main() -> None:
 
 	subscriber = CANBusSubscriber()
 	subscriber.subscribe(lambda message: log_frames(dbc, message))
-	for frame, signals in SIGNALS_TO_PRINT.items():
-		for signal in signals:
-			callback = functools.partial(print_signal, dbc, frame, signal)
-			subscriber.subscribe(callback)
+	for frame_id, signal_names in SIGNALS_TO_PRINT.items():
+		for signal_name in signal_names:
+			def make_callback(call_frame_id: int, call_signal_name: str) -> SubscriberCallback:
+				async def callback(message: can.Message) -> None:
+					await print_signal(dbc, message, call_frame_id, call_signal_name)
+
+				return callback
+
+			subscriber_callback = make_callback(frame_id, signal_name)
+			subscriber.subscribe(subscriber_callback, frame_id)
 
 	flick_volume_task = asyncio.create_task(flick_volume(vehicle_bus, dbc))
 	read_can_messages_task = asyncio.create_task(read_can_messages(vehicle_bus, subscriber))
