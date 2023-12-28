@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import random
-
 from pathlib import Path
 
 import can
@@ -14,13 +13,15 @@ VEHICLE_BUS_CHANNEL = 'can0'
 VEHICLE_BUS_BITRATE = 500000
 VEHICLE_DBC_FILE = Path('dbc/model3/Model3CAN.dbc')
 
-def configure_logger(name, level, file=None, formatter=None, propagate=False):
+
+def configure_logger(name: str, level: int, file: Path = None, formatter: logging.Formatter = None,
+                     propagate=False) -> logging.Logger:
 	logger = logging.getLogger(name)
 	logger.setLevel(level)
 	logger.propagate = propagate
 
 	if file:
-		Path(file).unlink(missing_ok=True)
+		file.unlink(missing_ok=True)
 		file_handler = logging.FileHandler(file)
 		file_handler.setLevel(level)
 		file_handler.setFormatter(formatter)
@@ -34,29 +35,25 @@ def configure_logger(name, level, file=None, formatter=None, propagate=False):
 
 	return logger
 
+
 common_formatter = logging.Formatter('%(asctime)s-%(name)s-%(levelname)s: %(message)s', '%H:%M:%S')
 logging.formatter = common_formatter
-can_logger = configure_logger("CAN", logging.DEBUG, file="can.log", formatter=common_formatter)
+can_logger = configure_logger("CAN", logging.DEBUG, file=Path("can.log"), formatter=common_formatter)
 flick_logger = configure_logger("Flick", logging.DEBUG, formatter=common_formatter)
 
 
 def create_signal_dict(message, specified_signals, default_value=0) -> dict[str, int]:
-	# Initialize all signals with a default value
 	signals = {signal.name: default_value for signal in message.signals}
 
-	# Find the multiplexer signal
 	multiplexer_signal = next((s for s in message.signals if s.is_multiplexer), None)
 
-	# Update with specified signals and determine the multiplexer value
 	multiplexer_value = None
 	for signal in message.signals:
 		if signal.name in specified_signals:
 			signals[signal.name] = specified_signals[signal.name]
 			if signal.multiplexer_ids is not None:
-				# Assuming the first ID in multiplexer_ids as the correct value
 				multiplexer_value = signal.multiplexer_ids[0]
 
-	# Set the multiplexer signal if it's found and needed
 	if multiplexer_signal and multiplexer_value is not None:
 		signals[multiplexer_signal.name] = multiplexer_value
 
@@ -65,7 +62,7 @@ def create_signal_dict(message, specified_signals, default_value=0) -> dict[str,
 
 async def flick_volume(bus: can.BusABC, dbc: cantools.db.Database) -> None:
 	volume_message = dbc.get_message_by_frame_id(VOLUME_TICKS_CAN_ID)
-	signals = create_signal_dict(volume_message,{'VCLEFT_swcLeftScrollTicks': -1})
+	signals = create_signal_dict(volume_message, {'VCLEFT_swcLeftScrollTicks': -1})
 	while True:
 		jitter = (random.randint(0, 4000) / 1000) - 2
 		interval = VOLUME_FLICK_INTERVAL + jitter
@@ -116,5 +113,4 @@ async def main() -> None:
 
 
 if __name__ == '__main__':
-
 	asyncio.run(main())
